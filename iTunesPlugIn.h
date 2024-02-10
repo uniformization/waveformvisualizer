@@ -53,6 +53,7 @@
 
 #if TARGET_OS_WIN32
 #include <Gdiplus.h>
+#include <vector>
 #endif // TARGET_OS_WIN32
 
 //-------------------------------------------------------------------------------------------------
@@ -124,6 +125,8 @@ struct VisualPluginData
 
 	UInt8				minLevel[kVisualMaxDataChannels];		// 0-128
 	UInt8				maxLevel[kVisualMaxDataChannels];		// 0-128
+
+	std::vector<POINT>  points;
 };
 typedef struct VisualPluginData VisualPluginData;
 

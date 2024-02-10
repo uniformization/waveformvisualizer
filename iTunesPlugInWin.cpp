@@ -57,7 +57,7 @@
 //	constants, etc.
 //-------------------------------------------------------------------------------------------------
 
-#define kTVisualPluginName              L"iTunes Sample Visualizer"
+#define kTVisualPluginName              L"Waveform Visualizer"
 
 static	WNDPROC			 giTunesWndProc			= NULL;
 static VisualPluginData* gVisualPluginData		= NULL;
@@ -95,93 +95,58 @@ void DrawVisual( VisualPluginData * visualPluginData )
 	if ( visualPluginData && visualPluginData->destView != NULL )
 	{
 		HDC hDC = ::GetDC( visualPluginData->destView );
+
+		if (!hDC) return;
 			
 		// fill the whole view with black to start
 		RECT clientRect;
-		::GetClientRect( visualPluginData->destView, &clientRect );
+		if (!::GetClientRect(visualPluginData->destView, &clientRect))
+		{
+			ReleaseDC(visualPluginData->destView, hDC);
+			return;
+		}
 		::FillRect( hDC, &clientRect, (HBRUSH) GetStockObject( BLACK_BRUSH ) );
 
-		// pick a random location to draw our little square
-		double randomX	= (rand() / 32767.0);		// [0, 1]
-		double randomY	= (rand() / 32767.0);		// [0, 1]
-		LONG whereX	= (LONG) (randomX * ( clientRect.right - clientRect.left ));
-		LONG whereY	= (LONG) (randomY * ( clientRect.bottom - clientRect.top ));
+		const int clientWidth = clientRect.right - clientRect.left;
+		const int clientHeight = clientRect.bottom - clientRect.top;
+		const int clientCenterHeight = clientHeight / 2;
 
-		COLORREF color;
-		if ( visualPluginData->playing )
+		if (visualPluginData->playing)
 		{
-			// if playing, draw a square whose color is dictated by the current max levels
-			int		red		= visualPluginData->maxLevel[1];
-			int		green	= visualPluginData->maxLevel[1];
-			int		blue	= visualPluginData->maxLevel[0];
+			HPEN pen = ::CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
+			if (!pen)
+			{
+				ReleaseDC(visualPluginData->destView, hDC);
+				return;
+			}
 
-			color = RGB(red, green, blue);
-		}
-		else
-		{
-			color = RGB(0, 0, 255);		// a blue square
-		}
+			SelectObject(hDC, pen);
+			
+			// scale it to the window
+			for (int i = 0; i < visualPluginData->points.size(); i++)
+			{
+				POINT* point = &visualPluginData->points.at(i);
 
-		RECT drawRect;
-		drawRect.left	= whereX;
-		drawRect.top	= whereY;
-		drawRect.right	= drawRect.left + 100;
-		drawRect.bottom = drawRect.top	+ 100;
+				LONG x = point->x;
+				LONG y = point->y;
 				
-		HBRUSH brush = CreateSolidBrush( color );
-		FillRect( hDC, &drawRect, brush );
-		DeleteObject( brush );
+				x = (x * clientWidth) / kVisualNumWaveformEntries;
 
-		// should we draw the info/artwork in the bottom-left corner?
-		time_t		theTime = time( NULL );
+				y = (y * clientHeight) / 255; // waveforms are 0-255, scale it to the window height
+				y = clientCenterHeight + (y - clientCenterHeight); // invert the waveform across y-axis
 
-		if ( theTime < visualPluginData->drawInfoTimeOut )
-		{
-			whereX = 10;
-			whereY = clientRect.bottom - 30;
-
-			// if we have a song title, draw it (prefer the stream title over the regular name if we have it)
-			wchar_t* theString;
-			int stringSize(0);
-
-			if ( visualPluginData->streamInfo.streamTitle[0] != 0 )
-			{
-				theString = (wchar_t*) visualPluginData->streamInfo.streamTitle[1];
-				stringSize = visualPluginData->streamInfo.streamTitle[0];
-			}
-			else if ( visualPluginData->trackInfo.name[0] != 0 )
-			{
-				theString	= (wchar_t*) &visualPluginData->trackInfo.name[1];
-				stringSize	= visualPluginData->trackInfo.name[0];
+				point->x = x;
+				point->y = y;
 			}
 
-			// Draw the string
-			if ( theString != NULL )
-			{
-				RECT stringRect = {whereX, whereY, whereX + 400, whereY + 20};
-
-				COLORREF oldTextColor = SetTextColor (hDC, RGB(200, 200, 200));
-				COLORREF oldBkColor = SetBkColor (hDC, RGB(0, 0, 0));
-				::TextOutW( hDC, whereX, whereY, theString, stringSize );
-
-				SetTextColor( hDC, oldTextColor );
-				SetBkColor( hDC, oldBkColor );
-			}
-
-			if ( visualPluginData->currentArtwork )
-			{
-				Gdiplus::Graphics graphics(hDC);
-
-				int imageSizeOnScreen_Width		= 120;
-				int imageSizeOnScreen_Height	= imageSizeOnScreen_Width * ( visualPluginData->currentArtwork->GetHeight() / visualPluginData->currentArtwork->GetWidth() );
-				
-				whereY = whereY - 10 - imageSizeOnScreen_Height;
-				
-				graphics.DrawImage(visualPluginData->currentArtwork, whereX, whereY, imageSizeOnScreen_Width, imageSizeOnScreen_Height);
-			}
-
-			ReleaseDC( visualPluginData->destView, hDC );
+			if (!visualPluginData->points.empty())
+				Polyline(hDC, visualPluginData->points.data(), static_cast<int>(visualPluginData->points.size()));
+			
+			visualPluginData->points.clear();
+			DeleteObject(pen);
 		}
+
+		ReleaseDC(visualPluginData->destView, hDC);
 	}
 }
 

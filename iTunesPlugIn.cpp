@@ -71,24 +71,21 @@ void ProcessRenderData( VisualPluginData * visualPluginData, UInt32 timeStampID,
 	}
 
 	visualPluginData->renderData = *renderData;
-	
-	for ( channel = 0;channel < renderData->numSpectrumChannels; channel++ )
+	visualPluginData->points.reserve(kVisualNumWaveformEntries);
+
+	for (SInt16 index = 1; index < kVisualNumWaveformEntries; index++)
 	{
-		visualPluginData->minLevel[channel] = 
-			visualPluginData->maxLevel[channel] = 
-			renderData->spectrumData[channel][0];
-
-		for ( index = 1; index < kVisualNumSpectrumEntries; index++ )
-		{
-			UInt8		value;
-			
-			value = renderData->spectrumData[channel][index];
-
-			if ( value < visualPluginData->minLevel[channel] )
-				visualPluginData->minLevel[channel] = value;
-			else if ( value > visualPluginData->maxLevel[channel] )
-				visualPluginData->maxLevel[channel] = value;
-		}
+		LONG y = 0;
+		
+		const UInt8 channels = visualPluginData->renderData.numWaveformChannels; // always 0-2
+		
+		for (SInt32 channel = 0; channel < channels; channel++)
+			y += visualPluginData->renderData.waveformData[channel][index];
+		
+		if (channels > 0)
+			y /= channels;
+		
+		visualPluginData->points.push_back({ index, y });
 	}
 }
 
@@ -100,6 +97,7 @@ void ResetRenderData( VisualPluginData * visualPluginData )
 {
 	memset( &visualPluginData->renderData, 0, sizeof(visualPluginData->renderData) );
 	memset( visualPluginData->minLevel, 0, sizeof(visualPluginData->minLevel) );
+	visualPluginData->points.clear();
 }
 
 //-------------------------------------------------------------------------------------------------
