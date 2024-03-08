@@ -143,10 +143,11 @@ void DrawVisual( VisualPluginData * visualPluginData )
 	}
 	else
 	{
-		std::vector<POINT> points;
-		points.push_back({ 0, centerHeight });
-		points.push_back({ width, centerHeight });
-		Polyline(hDC, points.data(), points.size());
+		const POINT points[2] = {
+			{ 0, centerHeight },
+			{ width, centerHeight }
+		};
+		Polyline(hDC, points, 2);
 	}
 
 	DeleteObject(pen);
