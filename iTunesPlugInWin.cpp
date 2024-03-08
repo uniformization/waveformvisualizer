@@ -92,62 +92,66 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 void DrawVisual( VisualPluginData * visualPluginData )
 {
 	// this shouldn't happen but let's be safe
-	if ( visualPluginData && visualPluginData->destView != NULL )
+	if (!visualPluginData || visualPluginData->destView == NULL) return;
+
+	HDC hDC = ::GetDC( visualPluginData->destView );
+	if (!hDC) return;
+
+	// fill the whole view with black to start
+	RECT clientRect;
+	if (!::GetClientRect(visualPluginData->destView, &clientRect))
 	{
-		HDC hDC = ::GetDC( visualPluginData->destView );
-
-		if (!hDC) return;
-			
-		// fill the whole view with black to start
-		RECT clientRect;
-		if (!::GetClientRect(visualPluginData->destView, &clientRect))
-		{
-			ReleaseDC(visualPluginData->destView, hDC);
-			return;
-		}
-		::FillRect( hDC, &clientRect, (HBRUSH) GetStockObject( BLACK_BRUSH ) );
-
-		const int clientWidth = clientRect.right - clientRect.left;
-		const int clientHeight = clientRect.bottom - clientRect.top;
-		const int clientCenterHeight = clientHeight / 2;
-
-		if (visualPluginData->playing)
-		{
-			HPEN pen = ::CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
-			if (!pen)
-			{
-				ReleaseDC(visualPluginData->destView, hDC);
-				return;
-			}
-
-			SelectObject(hDC, pen);
-			
-			// scale it to the window
-			for (int i = 0; i < visualPluginData->points.size(); i++)
-			{
-				POINT* point = &visualPluginData->points.at(i);
-
-				LONG x = point->x;
-				LONG y = point->y;
-				
-				x = (x * clientWidth) / kVisualNumWaveformEntries;
-
-				y = (y * clientHeight) / 255; // waveforms are 0-255, scale it to the window height
-				y = clientCenterHeight + (y - clientCenterHeight); // invert the waveform across y-axis
-
-				point->x = x;
-				point->y = y;
-			}
-
-			if (!visualPluginData->points.empty())
-				Polyline(hDC, visualPluginData->points.data(), static_cast<int>(visualPluginData->points.size()));
-			
-			visualPluginData->points.clear();
-			DeleteObject(pen);
-		}
-
 		ReleaseDC(visualPluginData->destView, hDC);
+		return;
 	}
+	::FillRect( hDC, &clientRect, (HBRUSH) GetStockObject( BLACK_BRUSH ) );
+
+	HPEN pen = ::CreatePen(PS_SOLID, 1, RGB(255, 0, 0));
+	if (!pen)
+	{
+		ReleaseDC(visualPluginData->destView, hDC);
+		return;
+	}
+	SelectObject(hDC, pen);
+
+	const int width = clientRect.right - clientRect.left;
+	const int height = clientRect.bottom - clientRect.top;
+	const int centerHeight = height / 2;
+
+	if (visualPluginData->playing)
+	{
+		// scale it to the window
+		for (int i = 0; i < visualPluginData->points.size(); i++)
+		{
+			POINT* point = &visualPluginData->points.at(i);
+
+			LONG x = point->x;
+			LONG y = point->y;
+
+			x = (x * width) / kVisualNumWaveformEntries;
+
+			y = (y * height) / 255; // waveforms are 0-255, scale it to the window height
+			y = centerHeight + (y - centerHeight); // invert the waveform across y-axis
+
+			point->x = x;
+			point->y = y;
+		}
+
+		Polyline(hDC, visualPluginData->points.data(), visualPluginData->points.size());
+		
+		visualPluginData->points.clear();
+	}
+	else
+	{
+		std::vector<POINT> points;
+		points.push_back({ 0, centerHeight });
+		points.push_back({ width, centerHeight });
+		Polyline(hDC, points.data(), points.size());
+	}
+
+	DeleteObject(pen);
+
+	ReleaseDC(visualPluginData->destView, hDC);
 }
 
 //-------------------------------------------------------------------------------------------------
